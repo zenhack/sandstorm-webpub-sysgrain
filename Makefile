@@ -9,6 +9,6 @@ webpub: target/debug/webpub
 target/debug/webpub:
 	cargo build
 
--include target/*/*.d
+-include $(wildcard target/*/*.d)
 
 .PHONY: all dev
