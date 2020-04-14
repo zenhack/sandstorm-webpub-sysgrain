@@ -73,4 +73,33 @@ impl ui_view::Server for MainViewImpl {
             Ok(())
         })
     }
+
+    fn new_request_session(&mut self,
+                           params: ui_view::NewRequestSessionParams,
+                           _results: ui_view::NewRequestSessionResults) -> Promise {
+        let mut path = self.site_dir.clone();
+        path.push("X");
+        Promise::from_future(async move {
+            let params = params.get()?;
+            let context = params.get_context()?;
+            // FIXME: we shouldn't open more than one instance of an environment
+            // per process:
+            let lmdb_site = lmdb_web_site::LMDBWebSite::open(
+                String::from("site"),
+                String::from("http://example.com"),
+                &path,
+            ).map_err(lmdb_web_site::db_err)?;
+            let site = web_site::ToClient::new(lmdb_site)
+                .into_client::<::capnp_rpc::Server>();
+            let mut req = context.fulfill_request_request();
+            {
+                let mut fulfill_params = req.get();
+                let mut fp = fulfill_params.reborrow();
+                fp.set_descriptor(params.get_request_info()?.get(0))?;
+                fp.get_cap().set_as_capability(site.client.hook);
+            }
+            let _ = req.send().promise.await?;
+            Ok(())
+        })
+    }
 }
