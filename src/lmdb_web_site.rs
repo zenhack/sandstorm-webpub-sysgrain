@@ -66,7 +66,7 @@ impl web_site::Server for LMDBWebSite {
     }
 }
 
-fn get_value<'a>(entities: &'a EntitiesCell, key: &'a str) -> lmdb::Result<&'a capnp::struct_list::Reader<'a, web_site::entity::Owned>> {
+fn get_value<'a>(entities: &'a EntitiesCell) -> lmdb::Result<&'a capnp::struct_list::Reader<'a, web_site::entity::Owned>> {
     /*
     let env = &entities.get().env.get();
     let db = &entities.get().db.get();
@@ -118,6 +118,29 @@ impl assignable::setter::Server<capnp::struct_list::Owned<web_site::entity::Owne
             } else {
                 set_value(&mut entities, &value)
                     .map_err(|_| Error::failed(String::from("Database Error")))
+            }
+        })
+    }
+}
+
+impl assignable::getter::Server<capnp::struct_list::Owned<web_site::entity::Owned>> for EntitiesCell {
+    fn get(&mut self,
+           params: assignable::getter::GetParams<entity_list::Owned>,
+           mut results: assignable::getter::GetResults<entity_list::Owned>) -> Promise<(), Error> {
+        let entities = self.clone();
+        Promise::from_future(async move {
+            match get_value(&entities) {
+                Ok(res) => {
+                    //TODO: results.set_value(res);
+                    Ok(())
+                },
+                Err(lmdb::Error::NotFound) => {
+                    // Just return null
+                    Ok(())
+                },
+                Err(_) => {
+                    Err(Error::failed(String::from("Database Error")))
+                }
             }
         })
     }
