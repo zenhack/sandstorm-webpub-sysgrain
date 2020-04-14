@@ -3,10 +3,10 @@ dev: all
 	spk dev
 
 # TODO: use release mode or parametrize at some point:
-webpub: target/debug/webpub
+webpub: $(PWD)/target/debug/webpub
 	cp $< $@
 
-target/debug/webpub:
+$(PWD)/target/debug/webpub:
 	cargo build
 
 -include $(wildcard target/*/*.d)
