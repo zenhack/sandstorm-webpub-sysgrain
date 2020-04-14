@@ -48,9 +48,9 @@ impl web_session::Server for WebSessionImpl {
                 .get_getter()?.get_request().send()
                 .promise.await?;
             let value = result.get()?.get_value()?;
-            match match_content(value,
-                                context.get_accept()?,
-                                context.get_accept_encoding()?) {
+            let accept = context.get_accept()?;
+            let accept_encoding = context.get_accept_encoding()?;
+            match match_content(value, accept, accept_encoding) {
                 Some(ref entity) => {
                     let mut content = response.init_content();
                     content.set_status_code(web_session::response::SuccessCode::Ok);
