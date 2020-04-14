@@ -105,7 +105,7 @@ impl assignable::Server<entity_list::Owned> for EntitiesCell {
     }
 }
 
-impl assignable::setter::Server<capnp::struct_list::Owned<web_site::entity::Owned>> for EntitiesCell {
+impl assignable::setter::Server<entity_list::Owned> for EntitiesCell {
     fn set(&mut self,
            params: assignable::setter::SetParams<entity_list::Owned>,
            mut _results: assignable::setter::SetResults<entity_list::Owned>) -> Promise<(), Error> {
@@ -123,7 +123,7 @@ impl assignable::setter::Server<capnp::struct_list::Owned<web_site::entity::Owne
     }
 }
 
-impl assignable::getter::Server<capnp::struct_list::Owned<web_site::entity::Owned>> for EntitiesCell {
+impl assignable::getter::Server<entity_list::Owned> for EntitiesCell {
     fn get(&mut self,
            params: assignable::getter::GetParams<entity_list::Owned>,
            mut results: assignable::getter::GetResults<entity_list::Owned>) -> Promise<(), Error> {
