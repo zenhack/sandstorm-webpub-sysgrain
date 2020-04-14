@@ -79,6 +79,15 @@ mod entity_list {
 }
 
 impl assignable::Server<entity_list::Owned> for EntitiesCell {
+    fn as_getter(&mut self,
+                 _params: assignable::AsGetterParams<entity_list::Owned>,
+                 mut results: assignable::AsGetterResults<entity_list::Owned>) -> Promise<(), Error> {
+        let ret = self.clone();
+        results.get().set_getter(assignable::getter::ToClient::new(ret)
+                                 .into_client::<capnp_rpc::Server>());
+        Promise::ok(())
+    }
+
     fn as_setter(&mut self,
                  _params: assignable::AsSetterParams<entity_list::Owned>,
                  mut results: assignable::AsSetterResults<entity_list::Owned>) -> Promise<(), Error> {
