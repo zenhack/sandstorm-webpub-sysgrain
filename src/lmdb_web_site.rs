@@ -1,4 +1,5 @@
 use lmdb;
+use lmdb::Transaction;
 use std::{
     path,
     rc::Rc,
@@ -19,6 +20,10 @@ pub struct LMDBWebSite {
 
 #[derive(Clone)]
 struct EntitiesCell(Rc<LMDBWebSite>);
+
+fn db_err(_: lmdb::Error) -> Error {
+    Error::failed(String::from("Database Error"))
+}
 
 impl LMDBWebSite {
     pub fn open(db_name: String, url: String, p: &path::Path) -> lmdb::Result<Self> {
@@ -66,37 +71,16 @@ impl web_site::Server for LMDBWebSite {
     }
 }
 
-fn get_value<'a>(entities: &'a EntitiesCell) -> lmdb::Result<&'a capnp::struct_list::Reader<'a, web_site::entity::Owned>> {
-    /*
-    let env = &entities.get().env.get();
-    let db = &entities.get().db.get();
-    let txn = env.begin_ro_txn()?;
-    let mut bytes: &[u8] = txn.get(db, key);
-    capnp::serialize::read_message_from_flat_slice(
-        &mut bytes,
-        Default::default(),
-    )?;
-    */
-    panic!("TODO")
-}
-
-fn set_value(entities: &mut EntitiesCell,
-             value: &capnp::struct_list::Reader<web_site::entity::Owned>) -> lmdb::Result<()> {
-    panic!("TODO")
-}
-
-fn delete_value(entities: &mut EntitiesCell) -> lmdb::Result<()> {
-    panic!("TODO")
-}
 
 mod entity_list {
     use sandstorm::web_publishing_capnp::web_site;
     pub type Owned = capnp::struct_list::Owned<web_site::entity::Owned>;
+    pub type Reader<'a> = capnp::struct_list::Reader<'a, web_site::entity::Owned>;
 }
 
 impl assignable::Server<entity_list::Owned> for EntitiesCell {
     fn as_setter(&mut self,
-                 params: assignable::AsSetterParams<entity_list::Owned>,
+                 _params: assignable::AsSetterParams<entity_list::Owned>,
                  mut results: assignable::AsSetterResults<entity_list::Owned>) -> Promise<(), Error> {
         let ret = self.clone();
         results.get().set_setter(assignable::setter::ToClient::new(ret)
@@ -109,39 +93,62 @@ impl assignable::setter::Server<entity_list::Owned> for EntitiesCell {
     fn set(&mut self,
            params: assignable::setter::SetParams<entity_list::Owned>,
            mut _results: assignable::setter::SetResults<entity_list::Owned>) -> Promise<(), Error> {
-        let mut entities = self.clone();
+        let entities = self.clone();
         Promise::from_future(async move {
             let value = params.get()?.get_value()?;
             if value.len() == 0 {
-                delete_value(&mut entities)
-                    .map_err(|_| Error::failed(String::from("Database Error")))
+                let site = &*entities.0;
+                let env = &*site.env;
+                let db = *site.db;
+                let mut txn = env.begin_rw_txn().map_err(db_err)?;
+                txn.del(db, &site.url, None).map_err(db_err)?;
+                txn.commit().map_err(db_err)?
             } else {
-                set_value(&mut entities, &value)
-                    .map_err(|_| Error::failed(String::from("Database Error")))
+                let mut msg = capnp::message::Builder::new_default();
+                msg.set_root(value)?;
+                let mut buffer = vec![];
+                capnp::serialize::write_message(&mut buffer, &msg)?;
+
+                let site = &*entities.0;
+                let env = &*site.env;
+                let db = *site.db;
+                let mut txn = env.begin_rw_txn().map_err(db_err)?;
+                txn.put(db, &site.url, &buffer, lmdb::WriteFlags::empty()).map_err(db_err)?;
+                txn.commit().map_err(db_err)?
             }
+            Ok(())
         })
     }
 }
 
 impl assignable::getter::Server<entity_list::Owned> for EntitiesCell {
     fn get(&mut self,
-           params: assignable::getter::GetParams<entity_list::Owned>,
+           _params: assignable::getter::GetParams<entity_list::Owned>,
            mut results: assignable::getter::GetResults<entity_list::Owned>) -> Promise<(), Error> {
         let entities = self.clone();
         Promise::from_future(async move {
-            match get_value(&entities) {
-                Ok(res) => {
-                    //TODO: results.set_value(res);
-                    Ok(())
-                },
+            let site = &*entities.0;
+            let env = &*site.env;
+            let db = *site.db;
+            let txn = env.begin_ro_txn().map_err(db_err)?;
+            let mut bytes: &[u8] = match txn.get(db, &site.url) {
+                Ok(res) => res,
                 Err(lmdb::Error::NotFound) => {
                     // Just return null
-                    Ok(())
+                    return Ok(())
                 },
-                Err(_) => {
-                    Err(Error::failed(String::from("Database Error")))
+                Err(e) => {
+                    return Err(db_err(e))
                 }
-            }
+            };
+            let msg =
+                capnp::serialize::read_message_from_flat_slice(
+                    &mut bytes,
+                    Default::default(),
+                )?;
+            let src_list: entity_list::Reader = msg.get_root()?;
+            results.get().set_value(src_list)?;
+            Ok(())
         })
     }
 }
