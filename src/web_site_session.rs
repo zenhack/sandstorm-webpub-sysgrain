@@ -37,7 +37,15 @@ impl web_session::Server for WebSessionImpl {
             req.get().set_path(params.get_path()?);
             let result = req.send()
                 .pipeline.get_entities()
-                .get_request().send()
+                // We haven't actually implemented Assignable.get(), so
+                // convert it into a getter first. The latter has some
+                // optimistic concurrency stuff that we don't actually need.
+                .as_getter_request().send()
+                // Ideally we'd pipeline this request too, but I'm getting
+                // an error from the compiler about the trait bound for Pipeline
+                // not being satisfied for the struct list.
+                .promise.await?.get()?
+                .get_getter()?.get_request().send()
                 .promise.await?;
             let value = result.get()?.get_value()?;
             match match_content(value,
