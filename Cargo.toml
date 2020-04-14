@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 capnp = "0.12.0"
 capnp-rpc = "0.12.1"
-sandstorm = "0.0.11"
+sandstorm = "0.0.13"
 
 lmdb = "0.8.0"
 
