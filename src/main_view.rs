@@ -42,11 +42,17 @@ impl ui_view::Server for MainViewImpl {
     }
 
     fn new_session(&mut self,
-                   _params: ui_view::NewSessionParams,
+                   params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
         let mut path = self.site_dir.clone();
         path.push("X");
         Promise::from_future(async move {
+            let session_type_id = params.get()?.get_session_type();
+            if session_type_id != web_session::Client::type_id() {
+                return Err(capnp::Error::failed(format!(
+                            "unsupported session type id: {}",
+                            session_type_id)))
+            }
             // Make an effort to create the dir if needed. If this fails,
             // it may be because it already exists, and if it's a "real"
             // failure we'll hit it later anyway, so ignore the result:
