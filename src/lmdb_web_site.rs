@@ -21,7 +21,7 @@ pub struct LMDBWebSite {
 #[derive(Clone)]
 struct EntitiesCell(Rc<LMDBWebSite>);
 
-fn db_err(_: lmdb::Error) -> Error {
+pub fn db_err(_: lmdb::Error) -> Error {
     Error::failed(String::from("Database Error"))
 }
 

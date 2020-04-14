@@ -1,42 +1,36 @@
+use std::{
+    env,
+    fs,
+    path::PathBuf,
+};
 use capnp::{traits::HasTypeId};
-use capnp_rpc::pry;
 use sandstorm::{
     grain_capnp::{ui_view, ui_session},
     web_publishing_capnp::web_site,
     web_session_capnp::web_session,
 };
 use crate::promise_util::{Promise, ok};
+use crate::lmdb_web_site;
+use crate::web_site_session;
 
 pub struct MainViewImpl {
+    site_dir: PathBuf,
 }
 
 impl MainViewImpl {
-    pub fn new() -> MainViewImpl {
-        MainViewImpl{}
-    }
-}
+    pub fn new(site_dir: PathBuf) -> MainViewImpl {
+        // Make an effort to create the dir if needed. If this fails,
+        // it may be because it already exists, and if it's a "real"
+        // failure we'll hit it later anyway, so ignore the result:
+        let _ = fs::create_dir_all(&site_dir);
 
-pub struct WebSessionImpl {
-}
-
-impl ui_session::Server for WebSessionImpl {}
-
-impl web_session::Server for WebSessionImpl {
-
-    fn get(&mut self,
-           params: web_session::GetParams,
-           mut results: web_session::GetResults) -> Promise {
-
-        let params = pry!(params.get());
-        let ignore_body = params.get_ignore_body();
-        let response = results.get();
-        let mut content = response.init_content();
-        content.set_status_code(web_session::response::SuccessCode::Ok);
-        content.set_mime_type("text/plain");
-        if !ignore_body {
-            content.get_body().set_bytes(b"Test.");
+        MainViewImpl{
+            site_dir: site_dir,
         }
-        ok()
+    }
+
+    pub fn new_from_env() -> Result<MainViewImpl, env::VarError> {
+        Ok(Self::new(PathBuf::from(env::var("WEB_SITES_DIR")?)))
     }
 }
 
@@ -55,11 +49,23 @@ impl ui_view::Server for MainViewImpl {
     fn new_session(&mut self,
                    _params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
-        results.get().set_session(ui_session::Client{
-            client: web_session::ToClient::new(WebSessionImpl{})
-                .into_client::<::capnp_rpc::Server>()
-                .client,
-        });
-        ok()
+        let mut path = self.site_dir.clone();
+        path.push("X");
+        Promise::from_future(async move {
+            let lmdb_site = lmdb_web_site::LMDBWebSite::open(
+                String::from("site"),
+                String::from("http://example.com"),
+                &path,
+            ).map_err(lmdb_web_site::db_err)?;
+            let site = web_site::ToClient::new(lmdb_site)
+                .into_client::<::capnp_rpc::Server>();
+            let session = web_site_session::new(site);
+            results.get().set_session(ui_session::Client{
+                client: web_session::ToClient::new(session)
+                    .into_client::<::capnp_rpc::Server>()
+                    .client,
+            });
+            Ok(())
+        })
     }
 }

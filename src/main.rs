@@ -49,6 +49,6 @@ pub fn run_app(uiview: ui_view::Client) -> Result<(), Box<dyn (::std::error::Err
 }
 
 fn main() {
-    run_app(ui_view::ToClient::new(main_view::MainViewImpl::new())
+    run_app(ui_view::ToClient::new(main_view::MainViewImpl::new_from_env().unwrap())
                 .into_client::<::capnp_rpc::Server>()).unwrap();
 }
