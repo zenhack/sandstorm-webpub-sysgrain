@@ -10,7 +10,7 @@ use sandstorm::{
     web_publishing_capnp::web_site,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LMDBWebSite {
     db_name: String,
     url: String,
@@ -18,7 +18,7 @@ pub struct LMDBWebSite {
     db: Rc<lmdb::Database>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EntitiesCell(Rc<LMDBWebSite>);
 
 pub fn db_err(_: lmdb::Error) -> Error {
@@ -28,7 +28,9 @@ pub fn db_err(_: lmdb::Error) -> Error {
 impl LMDBWebSite {
     pub fn open(db_name: String, url: String, p: &path::Path) -> lmdb::Result<Self> {
         let env = lmdb::Environment::new().open(p)?;
-        let db = env.open_db(Some(&db_name[..]))?;
+        let db = env.open_db(Some(&db_name[..])).or_else(|_| {
+            env.create_db(None, lmdb::DatabaseFlags::empty())
+        })?;
         Ok(LMDBWebSite {
             db_name: db_name,
             url: url,

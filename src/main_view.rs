@@ -19,11 +19,6 @@ pub struct MainViewImpl {
 
 impl MainViewImpl {
     pub fn new(site_dir: PathBuf) -> MainViewImpl {
-        // Make an effort to create the dir if needed. If this fails,
-        // it may be because it already exists, and if it's a "real"
-        // failure we'll hit it later anyway, so ignore the result:
-        let _ = fs::create_dir_all(&site_dir);
-
         MainViewImpl{
             site_dir: site_dir,
         }
@@ -52,6 +47,10 @@ impl ui_view::Server for MainViewImpl {
         let mut path = self.site_dir.clone();
         path.push("X");
         Promise::from_future(async move {
+            // Make an effort to create the dir if needed. If this fails,
+            // it may be because it already exists, and if it's a "real"
+            // failure we'll hit it later anyway, so ignore the result:
+            let _ = fs::create_dir_all(&path);
             let lmdb_site = lmdb_web_site::LMDBWebSite::open(
                 String::from("site"),
                 String::from("http://example.com"),
