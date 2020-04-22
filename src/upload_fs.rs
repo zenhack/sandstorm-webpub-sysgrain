@@ -111,7 +111,11 @@ async fn setter_for_path(url_path: &str, site: &web_site::Client)
 }
 
 async fn upload_redirect(from: &str, to: &str, site: &web_site::Client) -> Result<()> {
-    // TODO: implement.
+    let mut req = setter_for_path(from, site).await?.set_request();
+    let entities = req.get().initn_value(1);
+    let mut entity = entities.get(0);
+    entity.set_redirect_to(to);
+    req.send().promise.await?.get()?;
     Ok(())
 }
 
