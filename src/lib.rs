@@ -5,3 +5,5 @@ pub mod web_site_session;
 pub mod lmdb_web_site;
 
 pub mod upload_fs;
+
+pub mod shortcuts;

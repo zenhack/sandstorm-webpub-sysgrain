@@ -1,9 +1,14 @@
+use crate::shortcuts;
 use std::{
     fs,
     io,
     path,
+    result,
 };
-use sandstorm::web_publishing_capnp::web_site;
+use sandstorm::{
+    util_capnp::assignable::setter,
+    web_publishing_capnp::web_site,
+};
 
 pub enum Error {
     Io(io::Error),
@@ -92,6 +97,19 @@ async fn upload_file(path: &path::Path, site: &web_site::Client) -> Result<()> {
     }
 }
 
+async fn setter_for_path(url_path: &str, site: &web_site::Client)
+    -> result::Result<setter::Client<shortcuts::entity_list::Owned>, capnp::Error>
+{
+    let mut req = site.get_entities_request();
+    req.get().set_path(url_path);
+    req.send()
+        .pipeline.get_entities()
+        .as_setter_request().send()
+        // We should be able to pipeline this, but I(zenhack) am getting an error
+        // I don't understand:
+        .promise.await?.get()?.get_setter()
+}
+
 async fn upload_redirect(from: &str, to: &str, site: &web_site::Client) -> Result<()> {
     // TODO: implement.
     Ok(())
@@ -101,16 +119,7 @@ async fn upload_file_contents(mime_type: &str,
                               file_path: &path::Path,
                               url_path: &str,
                               site: &web_site::Client) -> Result<()> {
-    let mut req = site.get_entities_request();
-    req.get().set_path(url_path);
-
-    let mut req = req.send()
-        .pipeline.get_entities()
-        .as_setter_request().send()
-        // We should be able to pipeline, this, but I(zenhack) am getting an error
-        // I don't understand:
-        .promise.await?.get()?
-        .get_setter()?.set_request();
+    let mut req = setter_for_path(url_path, site).await?.set_request();
     let entities = req.get().initn_value(1);
     let mut entity = entities.get(0);
     entity.reborrow().get_body().set_bytes(&fs::read(file_path)?);
