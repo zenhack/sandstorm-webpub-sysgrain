@@ -13,6 +13,7 @@ use sandstorm::{
 pub enum Error {
     Io(io::Error),
     Capnp(capnp::Error),
+    StripPrefix(path::StripPrefixError),
     NonUnicodePath,
 }
 
@@ -28,14 +29,40 @@ impl From<capnp::Error> for Error {
     }
 }
 
+impl From<path::StripPrefixError> for Error {
+    fn from(e: path::StripPrefixError) -> Self {
+        Error::StripPrefix(e)
+    }
+}
+
 type Result<T> = core::result::Result<T, Error>;
 
 /// Helper for uploading files into a website.
 pub async fn upload_path(path: &path::Path, site: &web_site::Client) -> Result<()> {
     if path.is_dir() {
-        upload_dir(path.to_path_buf(), site).await
+        upload_dir(path, site).await
     } else {
-        upload_file(path, site).await
+        upload_file(path, path, site).await
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct UrlPath<'a> {
+    s: &'a str,
+}
+
+impl <'a> UrlPath<'a> {
+    fn new(file_root: &'a path::Path, file_path: &'a path::Path) -> Result<Self> {
+        let ret = UrlPath {
+            s: path_str(file_path.strip_prefix(file_root)?)?
+        };
+        Ok(ret)
+    }
+
+    fn to_str(&self) -> &'a str { self.s }
+
+    fn from_str(s: &'a str) -> Self {
+        UrlPath { s: s }
     }
 }
 
@@ -52,8 +79,9 @@ fn guess_mime_type(path: &path::Path) -> Result<String> {
     Ok(String::from(mime.essence_str()))
 }
 
-async fn upload_dir(path: path::PathBuf,
+async fn upload_dir(root: &path::Path,
                     site: &web_site::Client) -> Result<()> {
+    let path = root.to_path_buf();
     // Use an explicit stack to recursively walk the file tree, because
     // I(zenhack) can't figure out how to write a recursive async function.
     let mut stack = vec![path];
@@ -66,7 +94,7 @@ async fn upload_dir(path: path::PathBuf,
                         stack.push(entry?.path())
                     }
                 } else {
-                    upload_file(&path, site).await?;
+                    upload_file(&root, &path, site).await?;
                 }
             }
         }
@@ -78,30 +106,37 @@ fn path_str(p: &path::Path) -> Result<&str> {
     p.to_str().ok_or(Error::NonUnicodePath)
 }
 
-async fn upload_file(path: &path::Path, site: &web_site::Client) -> Result<()> {
+async fn upload_file(root: &path::Path,
+                     path: &path::Path,
+                     site: &web_site::Client) -> Result<()> {
     let mime_type = guess_mime_type(path)?;
     if path.ends_with("index.html") {
-        let parent = path_str(path.parent().expect("non-empty path"))?;
-        let parent_with_slash = String::from(parent) + "/";
+        let parent = UrlPath::new(root, path.parent().expect("non-empty path"))?;
+        let parent_string_with_slash = String::from(parent.to_str()) + "/";
+        let parent_with_slash = UrlPath::from_str(&parent_string_with_slash);
         upload_file_contents(&mime_type,
                              path,
-                             &parent_with_slash,
+                             parent_with_slash,
                              site).await?;
-        upload_redirect(parent, &parent_with_slash, site).await?;
-        upload_redirect(path_str(path)?, &parent_with_slash, site).await
+        upload_redirect(parent,
+                        parent_with_slash,
+                        site).await?;
+        upload_redirect(UrlPath::new(root, path)?,
+                        parent_with_slash,
+                        site).await
     } else {
         upload_file_contents(&mime_type,
                              path,
-                             path_str(path)?,
+                             UrlPath::new(root, path)?,
                              site).await
     }
 }
 
-async fn setter_for_path(url_path: &str, site: &web_site::Client)
+async fn setter_for_path<'a>(url_path: UrlPath<'a>, site: &web_site::Client)
     -> result::Result<setter::Client<shortcuts::entity_list::Owned>, capnp::Error>
 {
     let mut req = site.get_entities_request();
-    req.get().set_path(url_path);
+    req.get().set_path(url_path.to_str());
     req.send()
         .pipeline.get_entities()
         .as_setter_request().send()
@@ -110,19 +145,21 @@ async fn setter_for_path(url_path: &str, site: &web_site::Client)
         .promise.await?.get()?.get_setter()
 }
 
-async fn upload_redirect(from: &str, to: &str, site: &web_site::Client) -> Result<()> {
+async fn upload_redirect<'a>(from: UrlPath<'a>,
+                             to: UrlPath<'a>,
+                             site: &web_site::Client) -> Result<()> {
     let mut req = setter_for_path(from, site).await?.set_request();
     let entities = req.get().initn_value(1);
     let mut entity = entities.get(0);
-    entity.set_redirect_to(to);
+    entity.set_redirect_to(to.to_str());
     req.send().promise.await?.get()?;
     Ok(())
 }
 
-async fn upload_file_contents(mime_type: &str,
-                              file_path: &path::Path,
-                              url_path: &str,
-                              site: &web_site::Client) -> Result<()> {
+async fn upload_file_contents<'a>(mime_type: &str,
+                                  file_path: &path::Path,
+                                  url_path: UrlPath<'a>,
+                                  site: &web_site::Client) -> Result<()> {
     let mut req = setter_for_path(url_path, site).await?.set_request();
     let entities = req.get().initn_value(1);
     let mut entity = entities.get(0);
