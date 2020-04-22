@@ -1,7 +1,7 @@
 use std::{
     env,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Mutex,
     result,
 };
 use capnp::{traits::HasTypeId};
@@ -17,15 +17,14 @@ use crate::{
     storage::Storage,
 };
 
-#[derive(Clone)]
 pub struct MainViewImpl {
-    storage: Arc<Mutex<Storage>>,
+    storage: Mutex<Storage>,
 }
 
 impl MainViewImpl {
     pub fn new(site_dir: PathBuf) -> MainViewImpl {
         MainViewImpl{
-            storage: Arc::new(Mutex::new(Storage::new(site_dir)))
+            storage: Mutex::new(Storage::new(site_dir))
         }
     }
 
@@ -53,7 +52,7 @@ impl ui_view::Server for MainViewImpl {
     fn new_session(&mut self,
                    params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
-        let mut this = self.clone();
+        let lmdb_site = self.get_site("X");
         Promise::from_future(async move {
             let session_type_id = params.get()?.get_session_type();
             if session_type_id != web_session::Client::type_id() {
@@ -61,9 +60,7 @@ impl ui_view::Server for MainViewImpl {
                             "unsupported session type id: {}",
                             session_type_id)))
             }
-
-            let lmdb_site = this.get_site("X")?;
-            let site = web_site::ToClient::new(lmdb_site)
+            let site = web_site::ToClient::new(lmdb_site?)
                 .into_client::<::capnp_rpc::Server>();
             let session = web_site_session::new(site);
             results.get().set_session(ui_session::Client{
@@ -78,14 +75,12 @@ impl ui_view::Server for MainViewImpl {
     fn new_request_session(&mut self,
                            params: ui_view::NewRequestSessionParams,
                            _results: ui_view::NewRequestSessionResults) -> Promise {
-        let mut this = self.clone();
+        let lmdb_site = self.get_site("X");
         Promise::from_future(async move {
             let params = params.get()?;
             let context = params.get_context()?;
 
-            let lmdb_site = this.get_site("X")?;
-
-            let site = web_site::ToClient::new(lmdb_site)
+            let site = web_site::ToClient::new(lmdb_site?)
                 .into_client::<::capnp_rpc::Server>();
             let mut req = context.fulfill_request_request();
             {
