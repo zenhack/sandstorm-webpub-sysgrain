@@ -34,6 +34,19 @@ pub async fn upload_path(path: &path::Path, site: &web_site::Client) -> Result<(
     }
 }
 
+fn guess_mime_type(path: &path::Path) -> Result<String> {
+    let ext = match path.extension() {
+        None => {
+            return Ok(String::from("application/octet-stream"))
+        },
+        Some(os_str) => {
+            os_str.to_str().ok_or(Error::NonUnicodePath)?
+        }
+    };
+    let mime = mime_guess::from_ext(ext).first_or_octet_stream();
+    Ok(String::from(mime.essence_str()))
+}
+
 async fn upload_dir(path: path::PathBuf,
                     site: &web_site::Client) -> Result<()> {
     // Use an explicit stack to recursively walk the file tree, because
@@ -61,14 +74,21 @@ fn path_str(p: &path::Path) -> Result<&str> {
 }
 
 async fn upload_file(path: &path::Path, site: &web_site::Client) -> Result<()> {
+    let mime_type = guess_mime_type(path)?;
     if path.ends_with("index.html") {
         let parent = path_str(path.parent().expect("non-empty path"))?;
         let parent_with_slash = String::from(parent) + "/";
-        upload_file_contents(path, &parent_with_slash, site).await?;
+        upload_file_contents(&mime_type,
+                             path,
+                             &parent_with_slash,
+                             site).await?;
         upload_redirect(parent, &parent_with_slash, site).await?;
         upload_redirect(path_str(path)?, &parent_with_slash, site).await
     } else {
-        upload_file_contents(path, path_str(path)?, site).await
+        upload_file_contents(&mime_type,
+                             path,
+                             path_str(path)?,
+                             site).await
     }
 }
 
@@ -77,7 +97,8 @@ async fn upload_redirect(from: &str, to: &str, site: &web_site::Client) -> Resul
     Ok(())
 }
 
-async fn upload_file_contents(file_path: &path::Path,
+async fn upload_file_contents(mime_type: &str,
+                              file_path: &path::Path,
                               url_path: &str,
                               site: &web_site::Client) -> Result<()> {
     let mut req = site.get_entities_request();
@@ -91,8 +112,9 @@ async fn upload_file_contents(file_path: &path::Path,
         .promise.await?.get()?
         .get_setter()?.set_request();
     let entities = req.get().init_value();
-    let entity = entities.get(0);
-    entity.get_body().set_bytes(&fs::read(file_path)?);
+    let mut entity = entities.get(0);
+    entity.reborrow().get_body().set_bytes(&fs::read(file_path)?);
+    entity.set_mime_type(mime_type);
     req.send().promise.await?.get()?;
     Ok(())
 }

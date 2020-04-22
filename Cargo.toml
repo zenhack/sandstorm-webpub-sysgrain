@@ -13,6 +13,10 @@ sandstorm = "0.0.13"
 
 lmdb = "0.8.0"
 
+# Only needed for the upload_fs module, which we should move into a separate
+# command at some point:
+mime_guess = "2.0.3"
+
 ###
 futures = "0.3"
 mio-uds = "0.6"
