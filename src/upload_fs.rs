@@ -26,7 +26,6 @@ impl From<capnp::Error> for Error {
 type Result<T> = core::result::Result<T, Error>;
 
 /// Helper for uploading files into a website.
-///
 pub async fn upload_path(path: &path::Path, site: &web_site::Client) -> Result<()> {
     if path.is_dir() {
         upload_dir(path.to_path_buf(), site).await
