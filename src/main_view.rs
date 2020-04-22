@@ -1,7 +1,8 @@
 use std::{
     env,
-    fs,
     path::PathBuf,
+    sync::{Arc, Mutex},
+    result,
 };
 use capnp::{traits::HasTypeId};
 use sandstorm::{
@@ -9,23 +10,31 @@ use sandstorm::{
     web_publishing_capnp::web_site,
     web_session_capnp::web_session,
 };
-use crate::promise_util::{Promise, ok};
-use crate::lmdb_web_site;
-use crate::web_site_session;
+use crate::{
+    promise_util::{Promise, ok},
+    lmdb_web_site,
+    web_site_session,
+    storage::Storage,
+};
 
+#[derive(Clone)]
 pub struct MainViewImpl {
-    site_dir: PathBuf,
+    storage: Arc<Mutex<Storage>>,
 }
 
 impl MainViewImpl {
     pub fn new(site_dir: PathBuf) -> MainViewImpl {
         MainViewImpl{
-            site_dir: site_dir,
+            storage: Arc::new(Mutex::new(Storage::new(site_dir)))
         }
     }
 
     pub fn new_from_env() -> Result<MainViewImpl, env::VarError> {
         Ok(Self::new(PathBuf::from(env::var("WEB_SITES_DIR")?)))
+    }
+
+    fn get_site(&mut self, name: &str) -> result::Result<lmdb_web_site::LMDBWebSite, capnp::Error> {
+        self.storage.lock().unwrap().get(name).map_err(lmdb_web_site::db_err)
     }
 }
 
@@ -44,8 +53,7 @@ impl ui_view::Server for MainViewImpl {
     fn new_session(&mut self,
                    params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
-        let mut path = self.site_dir.clone();
-        path.push("X");
+        let mut this = self.clone();
         Promise::from_future(async move {
             let session_type_id = params.get()?.get_session_type();
             if session_type_id != web_session::Client::type_id() {
@@ -53,15 +61,8 @@ impl ui_view::Server for MainViewImpl {
                             "unsupported session type id: {}",
                             session_type_id)))
             }
-            // Make an effort to create the dir if needed. If this fails,
-            // it may be because it already exists, and if it's a "real"
-            // failure we'll hit it later anyway, so ignore the result:
-            let _ = fs::create_dir_all(&path);
-            let lmdb_site = lmdb_web_site::LMDBWebSite::open(
-                String::from("site"),
-                String::from("http://example.com"),
-                &path,
-            ).map_err(lmdb_web_site::db_err)?;
+
+            let lmdb_site = this.get_site("X")?;
             let site = web_site::ToClient::new(lmdb_site)
                 .into_client::<::capnp_rpc::Server>();
             let session = web_site_session::new(site);
@@ -77,18 +78,13 @@ impl ui_view::Server for MainViewImpl {
     fn new_request_session(&mut self,
                            params: ui_view::NewRequestSessionParams,
                            _results: ui_view::NewRequestSessionResults) -> Promise {
-        let mut path = self.site_dir.clone();
-        path.push("X");
+        let mut this = self.clone();
         Promise::from_future(async move {
             let params = params.get()?;
             let context = params.get_context()?;
-            // FIXME: we shouldn't open more than one instance of an environment
-            // per process:
-            let lmdb_site = lmdb_web_site::LMDBWebSite::open(
-                String::from("site"),
-                String::from("http://example.com"),
-                &path,
-            ).map_err(lmdb_web_site::db_err)?;
+
+            let lmdb_site = this.get_site("X")?;
+
             let site = web_site::ToClient::new(lmdb_site)
                 .into_client::<::capnp_rpc::Server>();
             let mut req = context.fulfill_request_request();
