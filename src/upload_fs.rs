@@ -111,7 +111,7 @@ async fn upload_file_contents(mime_type: &str,
         // I don't understand:
         .promise.await?.get()?
         .get_setter()?.set_request();
-    let entities = req.get().init_value();
+    let entities = req.get().initn_value(1);
     let mut entity = entities.get(0);
     entity.reborrow().get_body().set_bytes(&fs::read(file_path)?);
     entity.set_mime_type(mime_type);
