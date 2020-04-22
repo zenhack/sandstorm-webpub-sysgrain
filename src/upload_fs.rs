@@ -56,16 +56,32 @@ async fn upload_dir(path: path::PathBuf,
     Ok(())
 }
 
+fn path_str(p: &path::Path) -> Result<&str> {
+    p.to_str().ok_or(Error::NonUnicodePath)
+}
+
 async fn upload_file(path: &path::Path, site: &web_site::Client) -> Result<()> {
-    upload_file_contents(path, path, site).await
-    // TODO: check if the file is index.html, if so upload it as the dir as well.
+    if path.ends_with("index.html") {
+        let parent = path_str(path.parent().expect("non-empty path"))?;
+        let parent_with_slash = String::from(parent) + "/";
+        upload_file_contents(path, &parent_with_slash, site).await?;
+        upload_redirect(parent, &parent_with_slash, site).await?;
+        upload_redirect(path_str(path)?, &parent_with_slash, site).await
+    } else {
+        upload_file_contents(path, path_str(path)?, site).await
+    }
+}
+
+async fn upload_redirect(from: &str, to: &str, site: &web_site::Client) -> Result<()> {
+    // TODO: implement.
+    Ok(())
 }
 
 async fn upload_file_contents(file_path: &path::Path,
-                              url_path: &path::Path,
+                              url_path: &str,
                               site: &web_site::Client) -> Result<()> {
     let mut req = site.get_entities_request();
-    req.get().set_path(url_path.to_str().ok_or(Error::NonUnicodePath)?);
+    req.get().set_path(url_path);
 
     let mut req = req.send()
         .pipeline.get_entities()
