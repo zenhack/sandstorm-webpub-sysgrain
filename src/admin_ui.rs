@@ -31,28 +31,52 @@ impl web_session::Server for AdminUiSession {
             let params = params.get()?;
             let path = params.get_path()?;
             let ignore_body = params.get_ignore_body();
-            if path == "" {
-                match storage.lock().unwrap().list_sites() {
-                    Ok(sites) => {
-                        let res = results.get();
-                        let mut content = res.init_content();
-                        content.set_status_code(web_session::response::SuccessCode::Ok);
-                        content.set_mime_type("text/html");
-                        if !ignore_body {
-                            let body = Index{ sites: sites }.render().unwrap();
-                            content.get_body().set_bytes(body.as_bytes())
+            match path {
+                "" => {
+                    match storage.lock().unwrap().list_sites() {
+                        Ok(sites) => {
+                            let mut content = results.get().init_content();
+                            content.set_status_code(web_session::response::SuccessCode::Ok);
+                            content.set_mime_type("text/html");
+                            if !ignore_body {
+                                let body = Index{ sites: sites }.render().unwrap();
+                                content.get_body().set_bytes(body.as_bytes());
+                            }
+                        },
+                        Err(err) => {
+                            println!("Error listing sites: {:?}", err);
+                            let mut server_error = results.get().init_server_error();
+                            if !ignore_body {
+                                server_error.set_description_html(
+                                    include_str!("../static/server-error.html")
+                                );
+                            }
                         }
-                    },
-                    Err(err) => {
-                        println!("Error listing sites: {:?}", err);
-                        let res = results.get();
-                        let mut server_error = res.init_server_error();
-                        let body = include_str!("../static/server-error.html");
-                        server_error.set_description_html(body);
+                    };
+                    Ok(())
+                },
+                "admin-ui.js" => {
+                    let mut content = results.get().init_content();
+                    content.set_status_code(web_session::response::SuccessCode::Ok);
+                    content.set_mime_type("text/html");
+                    if !ignore_body {
+                        content.get_body().set_bytes(
+                            include_str!("../static/admin-ui.js").as_bytes()
+                        );
                     }
-                }
+                    Ok(())
+                },
+                _ => {
+                    let mut client_error = results.get().init_client_error();
+                    client_error.set_status_code(web_session::response::ClientErrorCode::NotFound);
+                    if !ignore_body {
+                        client_error.set_description_html(
+                            include_str!("../static/not-found.html")
+                        );
+                    }
+                    Ok(())
+                },
             }
-            Ok(())
         })
     }
 }
