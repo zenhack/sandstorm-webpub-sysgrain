@@ -9,3 +9,5 @@ pub mod upload_fs;
 pub mod shortcuts;
 
 pub mod storage;
+
+pub mod admin_ui;

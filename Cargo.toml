@@ -10,6 +10,7 @@ edition = "2018"
 capnp = "0.12.0"
 capnp-rpc = "0.12.1"
 sandstorm = "0.0.13"
+askama = "0.9"
 
 lmdb = "0.8.0"
 

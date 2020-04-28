@@ -13,6 +13,8 @@ usr/lib/libc.so.6
 usr/lib/libdl-2.31.so
 usr/lib/libdl.so.2
 usr/lib/libgcc_s.so.1
+usr/lib/libm-2.31.so
+usr/lib/libm.so.6
 usr/lib/libpthread-2.31.so
 usr/lib/libpthread.so.0
 webpub

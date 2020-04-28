@@ -1,7 +1,7 @@
 use std::{
     env,
     path::PathBuf,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     result,
 };
 use capnp::{traits::HasTypeId};
@@ -11,6 +11,7 @@ use sandstorm::{
     web_session_capnp::web_session,
 };
 use crate::{
+    admin_ui,
     promise_util::{Promise, ok},
     lmdb_web_site,
     web_site_session,
@@ -18,13 +19,13 @@ use crate::{
 };
 
 pub struct MainViewImpl {
-    storage: Mutex<Storage>,
+    storage: Arc<Mutex<Storage>>,
 }
 
 impl MainViewImpl {
     pub fn new(site_dir: PathBuf) -> MainViewImpl {
         MainViewImpl{
-            storage: Mutex::new(Storage::new(site_dir))
+            storage: Arc::new(Mutex::new(Storage::new(site_dir)))
         }
     }
 
@@ -50,6 +51,19 @@ impl ui_view::Server for MainViewImpl {
     }
 
     fn new_session(&mut self,
+                   _params: ui_view::NewSessionParams,
+                   mut results: ui_view::NewSessionResults) -> Promise {
+        let session = admin_ui::AdminUiSession::new(self.storage.clone());
+        results.get().set_session(ui_session::Client{
+            client: web_session::ToClient::new(session)
+                .into_client::<::capnp_rpc::Server>()
+                .client,
+        });
+        ok()
+    }
+
+    /*
+    fn new_session(&mut self,
                    params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
         let lmdb_site = self.get_site("X");
@@ -71,6 +85,7 @@ impl ui_view::Server for MainViewImpl {
             Ok(())
         })
     }
+    */
 
     fn new_request_session(&mut self,
                            params: ui_view::NewRequestSessionParams,

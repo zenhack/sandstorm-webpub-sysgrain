@@ -1,6 +1,7 @@
 use crate::lmdb_web_site;
 use std::{
     collections::HashMap,
+    io,
     fs,
     path,
 };
@@ -39,5 +40,14 @@ impl Storage {
                 Ok(lmdb_site)
             }
         }
+    }
+
+    pub fn list_sites(&self) -> io::Result<Vec<String>> {
+        fs::read_dir(&self.path)?.map(|r| r.map(|item| {
+            item.path()
+                .file_name().unwrap()
+                .to_os_string()
+                .into_string().unwrap()
+        })).collect()
     }
 }
