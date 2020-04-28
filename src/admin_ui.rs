@@ -47,9 +47,8 @@ impl web_session::Server for AdminUiSession {
                         println!("Error listing sites: {:?}", err);
                         let res = results.get();
                         let mut server_error = res.init_server_error();
-                        server_error.set_description_html(
-                            &ServerError{}.render().unwrap()
-                        )
+                        let body = include_str!("../static/server-error.html");
+                        server_error.set_description_html(body);
                     }
                 }
             }
@@ -62,9 +61,4 @@ impl web_session::Server for AdminUiSession {
 #[template(path = "index.html")]
 struct Index {
     sites: Vec<String>,
-}
-
-#[derive(Debug, Template)]
-#[template(path = "server-error.html")]
-struct ServerError {
 }
