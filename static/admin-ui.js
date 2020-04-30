@@ -14,14 +14,6 @@ function post(url, data) {
   })
 }
 
-function post(path) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', path);
-  xhr.onreadystatechange = function() {
-    if(
-  };
-}
-
 function offerSite(site) {
   post("/offer-site", site)
 }
