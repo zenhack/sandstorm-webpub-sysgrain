@@ -14,7 +14,6 @@ use crate::{
     admin_ui,
     promise_util::{Promise, ok},
     lmdb_web_site,
-    web_site_session,
     storage::Storage,
 };
 
@@ -51,32 +50,12 @@ impl ui_view::Server for MainViewImpl {
     }
 
     fn new_session(&mut self,
-                   _params: ui_view::NewSessionParams,
-                   mut results: ui_view::NewSessionResults) -> Promise {
-        let session = admin_ui::AdminUiSession::new(self.storage.clone());
-        results.get().set_session(ui_session::Client{
-            client: web_session::ToClient::new(session)
-                .into_client::<::capnp_rpc::Server>()
-                .client,
-        });
-        ok()
-    }
-
-    /*
-    fn new_session(&mut self,
                    params: ui_view::NewSessionParams,
                    mut results: ui_view::NewSessionResults) -> Promise {
-        let lmdb_site = self.get_site("X");
+        let storage = self.storage.clone();
         Promise::from_future(async move {
-            let session_type_id = params.get()?.get_session_type();
-            if session_type_id != web_session::Client::type_id() {
-                return Err(capnp::Error::failed(format!(
-                            "unsupported session type id: {}",
-                            session_type_id)))
-            }
-            let site = web_site::ToClient::new(lmdb_site?)
-                .into_client::<::capnp_rpc::Server>();
-            let session = web_site_session::new(site);
+            let context = params.get()?.get_context()?;
+            let session = admin_ui::AdminUiSession::new(storage, context);
             results.get().set_session(ui_session::Client{
                 client: web_session::ToClient::new(session)
                     .into_client::<::capnp_rpc::Server>()
@@ -85,7 +64,6 @@ impl ui_view::Server for MainViewImpl {
             Ok(())
         })
     }
-    */
 
     fn new_request_session(&mut self,
                            params: ui_view::NewRequestSessionParams,
