@@ -13,6 +13,11 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(path: path::PathBuf) -> Self {
+        // Make an effort to create the dir if needed. If this fails,
+        // it may be because it already exists, and if it's a "real"
+        // failure we'll hit it later anyway, so ignore the result:
+        let _ = fs::create_dir_all(&path);
+
         Storage {
             path: path,
             dbs: HashMap::new(),
@@ -25,11 +30,6 @@ impl Storage {
             None => {
                 let mut path = self.path.clone();
                 path.push(path::Path::new(name));
-
-                // Make an effort to create the dir if needed. If this fails,
-                // it may be because it already exists, and if it's a "real"
-                // failure we'll hit it later anyway, so ignore the result:
-                let _ = fs::create_dir_all(&path);
 
                 let lmdb_site = lmdb_web_site::LMDBWebSite::open(
                     String::from("site"),
