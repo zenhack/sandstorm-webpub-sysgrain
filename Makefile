@@ -1,6 +1,8 @@
 all: webpub
 dev: all
 	spk dev
+clean:
+	rm -rf webpub target/
 
 # TODO: use release mode or parametrize at some point:
 webpub: $(PWD)/target/debug/webpub
@@ -11,4 +13,4 @@ $(PWD)/target/debug/webpub: Cargo.toml
 
 -include $(wildcard target/*/*.d)
 
-.PHONY: all dev
+.PHONY: all dev clean
