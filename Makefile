@@ -6,7 +6,7 @@ dev: all
 webpub: $(PWD)/target/debug/webpub
 	cp $< $@
 
-$(PWD)/target/debug/webpub:
+$(PWD)/target/debug/webpub: Cargo.toml
 	cargo build
 
 -include $(wildcard target/*/*.d)
