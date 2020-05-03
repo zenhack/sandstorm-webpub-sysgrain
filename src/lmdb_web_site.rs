@@ -88,8 +88,7 @@ impl assignable::Server<entity_list::Owned> for EntitiesCell {
                  _params: assignable::AsSetterParams<entity_list::Owned>,
                  mut results: assignable::AsSetterResults<entity_list::Owned>) -> Promise<(), Error> {
         let ret = self.clone();
-        results.get().set_setter(assignable::setter::ToClient::new(ret)
-                                 .into_client::<capnp_rpc::Server>());
+        results.get().set_setter(capnp_rpc::new_client(ret));
         Promise::ok(())
     }
 }
