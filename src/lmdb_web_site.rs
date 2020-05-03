@@ -55,8 +55,7 @@ impl web_site::Server for LMDBWebSite {
         let mut site = self.clone();
         Promise::from_future(async move {
             site.url += params.get()?.get_prefix()?;
-            results.get().set_site(web_site::ToClient::new(site)
-                                   .into_client::<capnp_rpc::Server>());
+            results.get().set_site(capnp_rpc::new_client(site));
             Ok(())
         })
     }
@@ -67,8 +66,7 @@ impl web_site::Server for LMDBWebSite {
         let mut site = self.clone();
         Promise::from_future(async move {
             site.url += params.get()?.get_path()?;
-            results.get().set_entities(assignable::ToClient::new(EntitiesCell(Rc::new(site)))
-                                       .into_client::<capnp_rpc::Server>());
+            results.get().set_entities(capnp_rpc::new_client(EntitiesCell(Rc::new(site))));
             Ok(())
         })
     }
@@ -78,18 +76,14 @@ impl assignable::Server<entity_list::Owned> for EntitiesCell {
     fn as_getter(&mut self,
                  _params: assignable::AsGetterParams<entity_list::Owned>,
                  mut results: assignable::AsGetterResults<entity_list::Owned>) -> Promise<(), Error> {
-        let ret = self.clone();
-        results.get().set_getter(assignable::getter::ToClient::new(ret)
-                                 .into_client::<capnp_rpc::Server>());
+        results.get().set_getter(capnp_rpc::new_client(self.clone()));
         Promise::ok(())
     }
 
     fn as_setter(&mut self,
                  _params: assignable::AsSetterParams<entity_list::Owned>,
                  mut results: assignable::AsSetterResults<entity_list::Owned>) -> Promise<(), Error> {
-        let ret = self.clone();
-        results.get().set_setter(assignable::setter::ToClient::new(ret)
-                                 .into_client::<capnp_rpc::Server>());
+        results.get().set_setter(capnp_rpc::new_client(self.clone()));
         Promise::ok(())
     }
 }

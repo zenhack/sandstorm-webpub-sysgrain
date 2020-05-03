@@ -20,8 +20,7 @@ impl web_site::Server for WebSiteImpl {
         let site = WebSiteImpl {
             url: self.url.clone() + pry!(pry!(params.get()).get_prefix())
         };
-        results.get().set_site(web_site::ToClient::new(site)
-                               .into_client::<capnp_rpc::Server>());
+        results.get().set_site(capnp_rpc::new_client(site));
         Promise::ok(())
     }
 }

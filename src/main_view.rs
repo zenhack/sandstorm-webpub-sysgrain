@@ -56,11 +56,8 @@ impl ui_view::Server for MainViewImpl {
         Promise::from_future(async move {
             let context = params.get()?.get_context()?;
             let session = admin_ui::AdminUiSession::new(storage, context);
-            results.get().set_session(ui_session::Client{
-                client: web_session::ToClient::new(session)
-                    .into_client::<::capnp_rpc::Server>()
-                    .client,
-            });
+            let ws_client: web_session::Client = capnp_rpc::new_client(session);
+            results.get().set_session(ui_session::Client{ client: ws_client.client });
             Ok(())
         })
     }
@@ -73,8 +70,7 @@ impl ui_view::Server for MainViewImpl {
             let params = params.get()?;
             let context = params.get_context()?;
 
-            let site = web_site::ToClient::new(lmdb_site?)
-                .into_client::<::capnp_rpc::Server>();
+            let site: web_site::Client = capnp_rpc::new_client(lmdb_site?);
             let mut req = context.fulfill_request_request();
             {
                 let mut fulfill_params = req.get();

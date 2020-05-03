@@ -2,7 +2,6 @@ use askama::Template;
 use sandstorm::{
     web_session_capnp::web_session,
     grain_capnp::{ui_session, session_context},
-    web_publishing_capnp::web_site,
 };
 use capnp::capability::Promise;
 use std::{
@@ -104,16 +103,10 @@ impl web_session::Server for AdminUiSession {
                     let content_str = std::str::from_utf8(content)?;
                     let lmdb_site = storage.lock().unwrap().get(content_str)
                         .map_err(lmdb_web_site::db_err)?;
-                    let site = web_site::ToClient::new(lmdb_site)
-                        .into_client::<::capnp_rpc::Server>();
-                    let session = web_site_session::new(site);
+                    let session = web_site_session::new(capnp_rpc::new_client(lmdb_site));
                     let mut req = session_ctx.offer_request();
-                    req.get().get_cap().set_as_capability(
-                        web_session::ToClient::new(session)
-                            .into_client::<::capnp_rpc::Server>()
-                            .client
-                            .hook
-                    );
+                    let ws_client: web_session::Client = capnp_rpc::new_client(session);
+                    req.get().get_cap().set_as_capability(ws_client.client.hook);
                     // TODO: set the other parameter fields.
                     req.send().promise.await?;
                     Ok(())
