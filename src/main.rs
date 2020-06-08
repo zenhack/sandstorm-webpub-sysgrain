@@ -1,5 +1,6 @@
 use tokio;
 use futures_util::io::AsyncReadExt;
+use futures_util::future::TryFutureExt;
 use capnp_rpc::{
     RpcSystem,
     twoparty,
@@ -10,12 +11,13 @@ use sandstorm::{
         ui_view,
         sandstorm_api,
     },
+    sandstorm_http_bridge_capnp::sandstorm_http_bridge,
 };
 
 use webpub::main_view;
 
 
-pub fn run_sandstorm_app() -> Result<(), Box<dyn (::std::error::Error)>> {
+pub fn run_sandstorm_app() {
     let uiview: ui_view::Client = capnp_rpc::new_client(main_view::MainViewImpl::new_from_env().unwrap());
     use ::std::os::unix::io::{FromRawFd};
 
@@ -43,10 +45,34 @@ pub fn run_sandstorm_app() -> Result<(), Box<dyn (::std::error::Error)>> {
         drop(tx.send(rpc_system.bootstrap::<sandstorm_api::Client<::capnp::any_pointer::Owned>>(
             ::capnp_rpc::rpc_twoparty_capnp::Side::Server).client));
 
-        Ok::<_, Box<dyn (std::error::Error)>>(rpc_system.await?)
-    })?;
+        Ok::<_, Box<dyn (std::error::Error)>>(rpc_system.await.unwrap())
+    }).unwrap();
+}
 
-    Ok(())
+fn upload_dir(dir: &str, restore: &[u8]) {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let local = tokio::task::LocalSet::new();
+
+    local.block_on(&mut rt, async {
+        let stream = tokio::net::UnixStream::connect(std::path::Path::new("/tmp/sandstorm-api"))
+            .await.unwrap();
+        let (read_half, write_half) = futures_tokio_compat::Compat::new(stream).split();
+
+        let network =
+            Box::new(twoparty::VatNetwork::new(read_half, write_half,
+                                               rpc_twoparty_capnp::Side::Client,
+                                               Default::default()));
+        let (_tx, rx) = ::futures::channel::oneshot::channel();
+        let bridge: sandstorm_http_bridge::Client =
+            ::capnp_rpc::new_promise_client(rx.map_err(|_e| capnp::Error::failed(format!("oneshot was canceled"))));
+        let mut req = bridge
+            .get_sandstorm_api_request().send()
+            .pipeline.get_api().restore_request();
+        let mut token_buf = req.init_token(restore.len());
+        token_buf[..].clone_from_slice(restore);
+        let cap = req.send().pipeline.get_cap();
+        RpcSystem::new(network, None).await.unwrap();
+    })
 }
 
 fn main() {
@@ -71,8 +97,8 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("upload-fs") {
         let dir = matches.value_of("directory").unwrap();
         let restore = matches.value_of("restore").unwrap();
-        println!("{:?}, {:?}", dir, restore);
+        upload_dir(dir, hex::decode(restore).unwrap())
     } else {
-        run_sandstorm_app().unwrap();
+        run_sandstorm_app()
     }
 }
