@@ -15,7 +15,7 @@ use sandstorm::{
 use webpub::main_view;
 
 
-pub fn run_app() -> Result<(), Box<dyn (::std::error::Error)>> {
+pub fn run_sandstorm_app() -> Result<(), Box<dyn (::std::error::Error)>> {
     let uiview: ui_view::Client = capnp_rpc::new_client(main_view::MainViewImpl::new_from_env().unwrap());
     use ::std::os::unix::io::{FromRawFd};
 
@@ -50,5 +50,29 @@ pub fn run_app() -> Result<(), Box<dyn (::std::error::Error)>> {
 }
 
 fn main() {
-    run_app().unwrap();
+    let matches = clap::App::new("Sandstorm Web Publishing")
+        .version("0.1")
+        .author("Ian Denhardt <ian@zenhack.net>")
+        .subcommand(clap::SubCommand::with_name("upload-fs")
+                    .about("Upload a local directory as a website.")
+                    .arg(clap::Arg::with_name("directory")
+                         .short("d")
+                         .long("directory")
+                         .value_name("PATH")
+                         .required(true)
+                         .help("The directory to upload"))
+                    .arg(clap::Arg::with_name("restore")
+                         .short("r")
+                         .long("restore")
+                         .value_name("RESTORE_TOKEN")
+                         .required(true)
+                         .help("A token with which to acquire the website capability")))
+                    .get_matches();
+    if let Some(matches) = matches.subcommand_matches("upload-fs") {
+        let dir = matches.value_of("directory").unwrap();
+        let restore = matches.value_of("restore").unwrap();
+        println!("{:?}, {:?}", dir, restore);
+    } else {
+        run_sandstorm_app().unwrap();
+    }
 }

@@ -11,6 +11,7 @@ capnp = "0.12.2"
 capnp-rpc = "0.12.2"
 sandstorm = "0.0.13"
 askama = "0.9"
+clap = "2.33.1"
 
 lmdb = "0.8.0"
 
