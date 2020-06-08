@@ -15,7 +15,8 @@ use sandstorm::{
 use webpub::main_view;
 
 
-pub fn run_app(uiview: ui_view::Client) -> Result<(), Box<dyn (::std::error::Error)>> {
+pub fn run_app() -> Result<(), Box<dyn (::std::error::Error)>> {
+    let uiview: ui_view::Client = capnp_rpc::new_client(main_view::MainViewImpl::new_from_env().unwrap());
     use ::std::os::unix::io::{FromRawFd};
 
     let mut rt = tokio::runtime::Runtime::new().unwrap();
@@ -49,5 +50,5 @@ pub fn run_app(uiview: ui_view::Client) -> Result<(), Box<dyn (::std::error::Err
 }
 
 fn main() {
-    run_app(capnp_rpc::new_client(main_view::MainViewImpl::new_from_env().unwrap())).unwrap();
+    run_app().unwrap();
 }
